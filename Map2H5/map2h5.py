@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
+
 import customtkinter
-from XRDXRFutils import SyntheticDataXRF
+from XRDXRFutils import DataXRF
 from time import sleep
 
 #class InfoBoxFrame(customtkinter.CTkFrame):
@@ -99,7 +101,7 @@ class App(customtkinter.CTk):
         self.datadir = self.dir_entry.get()
         if self.datadir: 
             self.infobox.insert(f"reading: {self.datadir}")
-            self.data = SyntheticDataXRF().read(self.datadir)
+            self.data = DataXRF().read_from_map(self.datadir)
             self.outfile = self.h5out.get()
             self.infobox.insert(f"saving: {self.outfile}")
             self.data.save_h5(self.outfile)
