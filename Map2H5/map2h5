@@ -12,13 +12,33 @@ from tkinter import ttk
 from PyMca5.PyMcaGui.physics.xrf import McaAdvancedFit
 from subprocess import Popen
 import os, platform
-from FastFit import FastFit
+from Map2H5.FastFit import FastFit
+import threading
+from functools import partial
 
 AUDIOSUPPORT = True
 try:
-    from ElevatorPlayer import ElevatorPlayer
+    from Map2H5.ElevatorPlayer import ElevatorPlayer
 except ModuleNotFoundError:
     AUDIOSUPPORT = False
+
+INSTALLDIR = os.path.dirname(os.path.dirname(__file__))
+
+class Shifter(threading.Thread):
+    def __init__(self, threadID, master):
+        super().__init__()
+        self.master = master
+    
+    def run(self):
+        if self.master.shift_value != 0:
+            self.master.data.data = self.master.shift_data(self.master.data.data, n = self.master.shift_value)
+            self.master.data.shift_value += self.master.shift_value 
+            self.master.shift_value = 0
+
+            self.master.unpad_filter = (self.master.data.data.sum(2).sum(0) != 0)
+            
+            self.master.unpad()
+
 
 
 class RGBFrame(customtkinter.CTkFrame):
@@ -26,47 +46,33 @@ class RGBFrame(customtkinter.CTkFrame):
         super().__init__(*args, **kwargs)
        
         self.out = None
+        self.shape = None
         self.grid_columnconfigure((0,1,2,3), weight = 1)
         
+        self.keys = list(self.master.master.labels.keys() )
         self.label = customtkinter.CTkLabel(master = self, text = "RGB")
         self.label.grid(row = 0, column = 0, padx = 3, pady = 3, sticky = "nswe")
+        self.channels = ["red","green", "blue"]
+        for i,ch in enumerate(self.channels):
+            setattr(self, ch, customtkinter.CTkOptionMenu(master = self,
+                                                          values = [ch.capitalize()] + self.keys,
+                                                          command = partial(self.set_channel, channel = i)))
+            getattr(self, ch).grid(row = 0, column = i+1, padx = 3, pady = 3)
+            getattr(self, ch).set(ch.capitalize())
 
-        self.red = customtkinter.CTkOptionMenu(master = self,
-                                               values = list(self.master.master.labels.keys()),
-                                               command = self.set_red_channel)
-        self.red.grid(row = 0, column = 1, padx = 3, pady = 3)
-
-        self.green = customtkinter.CTkOptionMenu(master = self,
-                                                 values = list(self.master.master.labels.keys()),
-                                                 command = self.set_green_channel)
-        self.green.grid(row = 0, column = 2, padx = 3, pady = 3)
-
-        self.blue = customtkinter.CTkOptionMenu(master = self,
-                                                 values = list(self.master.master.labels.keys()),
-                                                 command = self.set_blue_channel)
-        self.blue.grid(row = 0, column = 3, padx = 3, pady = 3)
-
-    def set_red_channel(self, choice):
-        print(self.out.shape)
-        self.out[:,:,0] = self.master.master.norm(self.master.master.labels[choice]).astype(uint8)
-        self.update_image()
-
-    def set_green_channel(self, choice):
-        self.out[:,:,1] = self.master.master.norm(self.master.master.labels[choice]).astype(uint8)
-        self.update_image()
-
-    def set_blue_channel(self, choice):
-        self.out[:,:,2] = self.master.master.norm(self.master.master.labels[choice]).astype(uint8)
+    def set_channel(self, choice, channel):
+        if choice in self.keys:
+            self.out[:,:,channel] = self.master.master.norm(self.master.master.labels[choice]).astype(uint8)
+        else:
+            self.out[:,:,channel] = zeros(self.shape, dtype = uint8)
         self.update_image()
 
     def update_image(self):
-        self.master.master.imarray = self.out
+        self.master.master.imarray = self.out.copy()
+        self.master.master.shift_callback(self.master.master.shift_value, update = False)
         self.master.master.canvas_frame = Zoom_Advanced(master = self.master.master)
         self.master.master.canvas_frame.grid(row = 1, column = 0, columnspan = 3, sticky = "nswe")
         
-
-        
-
 
 class EMaps(customtkinter.CTkFrame):
     def __init__(self, *args, **kwargs):
@@ -85,9 +91,9 @@ class EMaps(customtkinter.CTkFrame):
         
     def showEmap(self, choice):
         self.master.imarray = self.master.norm(self.master.labels[choice]).astype(uint8)
+        self.master.shift_callback(self.master.shift_value, update = False)
         self.master.canvas_frame = Zoom_Advanced(master = self.master)
         self.master.canvas_frame.grid(row = 1, column = 0, columnspan = 3, sticky = "nswe")
-        #self.master.shift_sbox.set_default()
         
         
 
@@ -126,6 +132,7 @@ class ExistsDialog(customtkinter.CTkToplevel):
                                                           initialdir = os.path.dirname(self.fname),
                                                           filetypes = [("HDF5", "*.h5"),("all", "*")])
         if newfname:
+            if os.path.exists(newfname): os.remove(newfname)
             pathname, extension = os.path.splitext(newfname)
             self.newfname = os.path.basename(pathname)
 
@@ -187,7 +194,7 @@ class FitOptions(customtkinter.CTkToplevel):
     
     def PyMcaAdvFit(self):
         if self.sumspectrum_path:
-            command = ['python3', 'PyMcaAdvFit.py', f'{self.sumspectrum_path}']
+            command = ['python3', os.path.join(INSTALLDIR, 'bin','PyMcaAdvFit'), f'{self.sumspectrum_path}']
             p = Popen(command)
             p.wait()
 
@@ -195,17 +202,17 @@ class FitOptions(customtkinter.CTkToplevel):
         if choice == "configure" and hasattr(self.master, "data"):
             self.PyMcaAdvFit()
         elif choice == "fast-fit":
+            print(self.master.data.shape)
+            shifter = Shifter(0, self.master)
+            shifter.start()
             cfg = customtkinter.filedialog.askopenfilename(title = "Open config file",
                                                            initialdir = os.getcwd(),
                                                            filetypes = [("CFG", "*.cfg"), ("ALL", "*")])
+            shifter.join()
             outputdir = os.getcwd()
-            print("Fitting data...")
-            print("outputdir", outputdir)
             print(self.master.data.shape)
-            self.master.shift_data(n = self.master.shift_value)
             self.ffit = FastFit(data = self.master.data.data, cfgfile = cfg, outputdir = outputdir)
             print(self.ffit.filename)
-            print(self.master.data.shape)
             if os.path.exists(self.ffit.filename):
                 dialog = ExistsDialog(fname = self.ffit.filename)
                 dialog.update()
@@ -216,16 +223,18 @@ class FitOptions(customtkinter.CTkToplevel):
                 else:
                     self.ffit.outputdir = None
                 dialog.destroy()
-            if self.master.elevator: self.master.player = ElevatorPlayer(0, "player0", 'elevator-music.wav') 
-            message = MessageFrame(text = "Fitting...", elevator = self.master.elevator)
-            message.update()
-            message.focus()
-            message.play(lambda: self.master.player.start())
-            self.ffit.fit()
-            #setattr(self.master, "parameters", self.ffit.get_calibration_pars())
-            #setattr(self.master, "labels", self.ffit.get_labels())
-            message.stop(lambda: self.master.player.stop())
-            message.destroy()
+            
+            if self.ffit.outputdir:
+                print("Fitting data...")
+                print("outputdir", outputdir)
+                if self.master.elevator: self.master.player = ElevatorPlayer(0, "player0", os.path.join(INSTALLDIR,'share/Map2H5','elevator-music.wav')) 
+                message = MessageFrame(text = "Fitting...", elevator = self.master.elevator)
+                message.update()
+                message.focus()
+                message.play(lambda: self.master.player.start())
+                self.ffit.fit()
+                message.stop(lambda: self.master.player.stop())
+                message.destroy()
         
         self.destroy()
     
@@ -432,6 +441,7 @@ class Zoom_Advanced(customtkinter.CTkFrame):
     def show_image(self, event=None):
         ''' Show image on the Canvas '''
         self.image = Image.fromarray(self.imarr)
+        self.width, self.height = self.image.size
         bbox1 = self.canvas.bbox(self.container)  # get image area
         # Remove 1 pixel shift at the sides of the bbox1
         bbox1 = (bbox1[0] + 1, bbox1[1] + 1, bbox1[2] - 1, bbox1[3] - 1)
@@ -466,11 +476,12 @@ class App(customtkinter.CTk):
     def __init__(self, *args, path = None, **kwargs):
         super().__init__(*args, **kwargs)
         
+        self.name = "map2h5"
         customtkinter.set_appearance_mode('dark')       
         customtkinter.set_default_color_theme('dark-blue')
         
         self.geometry('800x500')
-        self.title("MyApp")
+        self.title("Map2H5")
         self.shift_value = 0
 
         self.elevator = False
@@ -506,77 +517,84 @@ class App(customtkinter.CTk):
         self.bind("<Control-Key-m>", self.on_ctrlM)
 
         self.emapsmenu = EMaps(master = self)
-        #self.emapsmenu.hidden = 1
 
 
-    def shift_data(self,n,method = 'even'):
+    def shift_data(self,data,n):
     
         def pad(x,n):
-            n = abs(n)
-            x = hstack((zeros((x.shape[0],n,x.shape[2])), x, zeros((x.shape[0],n,x.shape[2]))))
+            padding = zeros((x.shape[0],abs(n),x.shape[2]))
+            if n > 0:
+                x = hstack((x,padding))
+            elif n < 0:
+                x = hstack((padding, x))
             return x
-        
-        x = pad(self.data.data,n)
-        if method == 'both':
-            x[::2] = roll(x[::2], n, axis = 1)
-            x[1::2] = roll(x[1::2], -n, axis = 1)
-        elif method == 'even':
-            x[::2] = roll(x[::2], n, axis = 1)
-        elif method == 'odd':
-            x[1::2] = roll(x[1::2], -n, axis = 1)
 
-        self.data.data = x
-        self.shift_value = 0
+        x = pad(data,n)
+        x[::2] = roll(x[::2], n, axis = 1)
+
+        return x
+    
+    def unpad(self):
+        if (~self.unpad_filter).any():
+            self.data.data = self.data.data[:,self.unpad_filter]
 
     def read_callback(self):
         self.path = customtkinter.filedialog.askdirectory()
         if self.path:
-            if self.elevator: self.player = ElevatorPlayer(0, "player0", 'elevator-music.wav')
+            if self.elevator: self.player = ElevatorPlayer(0, "player0", os.path.join(INSTALLDIR, 'share/Map2H5','elevator-music.wav'))
             self.message = MessageFrame(text = "Reading...", elevator = self.elevator)
             self.message.play(lambda: self.player.start())
             self.message.update()
             self.data = DataXRF().read_from_map(self.path)
+            self.data.shift_value = 0
             self.message.stop(lambda: self.player.stop())
             self.message.destroy()
             self.imarray = self.norm(self.data.data.sum(2)).astype(uint8)
             self.labels = {"data" : self.imarray}
             self.emapsmenu.combobox.configure(values = list(self.labels.keys()))
+            self.emapsmenu.grid_remove()
             if platform.system().startswith('Linux'):
-                self.sumspectrum_path = f"/tmp/{os.path.basename(self.path)}_my_app.tmp"
+                self.sumspectrum_path = f"/tmp/{os.path.basename(self.path)}_{self.name}_sumspectrum.tmp"
             elif platform.system().startswith('Windows'):
-                self.sumspectrum_path = f"C:/Users/AppData/Local/Temp/{os.path.basename(self.path)}_my_app.tmp"
+                self.sumspectrum_path = f"C:/Users/AppData/Local/Temp/{os.path.basename(self.path)}_{self.name}_sumspectrum.tmp"
             data = self.data.data.sum(0).sum(0)
             npixel = self.data.shape[0]*self.data.shape[1]
             savetxt(self.sumspectrum_path, transpose([arange(self.data.shape[2]),data/npixel]))
-            #if self.canvas_frame:
-            #    self.canvas_frame.destroy()
-            #    self.canvas_frame = None
             self.canvas_frame = Zoom_Advanced(master = self)
             self.canvas_frame.grid(row = 1, column = 0, columnspan = 3, sticky = "nswe")
             self.shift_sbox.set_default()
+            self.shift_value = 0
         
     def add_callback(self):
         if not hasattr(self,"data"):
             return
         path = customtkinter.filedialog.askdirectory()
         if path:
-            self.message = MessageFrame(text = "Reading...")
+            if self.elevator: self.player = ElevatorPlayer(0, "player0", os.path.join(INSTALLDIR, 'share/Map2H5','elevator-music.wav'))
+            self.message = MessageFrame(text = "Reading...", elevator = self.elevator)
+            self.message.play(lambda: self.player.start())
             self.message.update()
             data = DataXRF().read_from_map(path)
+            self.message.stop(lambda: self.player.stop())
             self.message.destroy()
+            if self.data.shift_value != 0: data.data = self.shift_data(data.data, self.data.shift_value)
             self.data.data = self.data.data.copy() + data.data
             self.imarray = self.norm(self.data.data.sum(2)).astype(uint8)
             if os.name == "posix":
                 self.sumspectrum_path = f"/tmp/{os.path.basename(self.path)}_my_app.tmp"
             else:
                 self.sumspectrum_path = f"C:/Users/AppData/Local/Temp/{os.path.basename(self.path)}_my_app.tmp"
+            del(data)
             data = self.data.data.sum(0).sum(0)
             npixel = self.data.shape[0]*self.data.shape[1]
             savetxt(self.sumspectrum_path, transpose([arange(self.data.shape[2]),data/npixel]))
+            self.labels = {"data" : self.imarray}
+            self.emapsmenu.combobox.configure(values = list(self.labels.keys()))
+            self.emapsmenu.grid_remove()
             self.canvas_frame = Zoom_Advanced(master = self)
             self.canvas_frame.grid(row = 1, column = 0, columnspan = 3, sticky = "nswe")
             self.shift_sbox.set_default()
-
+            self.shift_value = 0
             
     
     def save_callback(self):
@@ -588,23 +606,25 @@ class App(customtkinter.CTk):
             self.wait_window(fitopt)
             self.parameters = fitopt.get_parameters()
             self.labels = fitopt.get_labels()
-            self.shift_sbox.set_default()
-            print("parameters", self.parameters)
-            print(type(self.labels))
-            self.emapsmenu.combobox.configure(values = ["data"]+list(self.labels.keys()))
-            self.emapsmenu.rgbframe.out = zeros((self.data.shape[0], self.data.shape[1], 3)).astype(uint8)
-            for attr in ['red', 'green', 'blue']:
-                getattr(self.emapsmenu.rgbframe, attr).configure(values = list(self.labels.keys()))
-            self.labels['data'] = self.imarray
-            self.emapsmenu.grid(row = 2, column = 0, padx = 3, pady = 3, sticky = "we")
-            self.emapsmenu.showEmap("data")
+            if self.labels:
+                print("after fit:", self.labels[list(self.labels.keys())[0]].shape)
+                self.shift_sbox.set_default()
+                print("parameters", self.parameters)
+                self.emapsmenu.combobox.configure(values = ["data"]+list(self.labels.keys()))
+                self.emapsmenu.rgbframe.out = zeros((self.data.shape[0], self.data.shape[1], 3)).astype(uint8)
+                self.emapsmenu.rgbframe.shape = self.data.shape[:2]
+                self.emapsmenu.rgbframe.keys = list(self.labels.keys())
+                for attr in ['red', 'green', 'blue']:
+                    getattr(self.emapsmenu.rgbframe, attr).configure(values = [attr.capitalize()] + list(self.labels.keys()))
+                self.labels['data'] = self.data.data.sum(2)
+                self.imarray = self.labels['data']
+                self.emapsmenu.grid(row = 2, column = 0, padx = 3, pady = 3, sticky = "we")
+                self.emapsmenu.showEmap("data")
 
-            
-
-    def shift_callback(self, value):
+    def shift_callback(self, value, update = True):
         if hasattr(self, "imarray") and type(self.imarray) != type(None):
             self.imarray[::2] = roll(self.imarray.copy()[::2], value, axis=1)
-            self.shift_value += value
+            if update: self.shift_value += value
             self.canvas_frame.show_image()
 
     def on_destroy(self, event):
@@ -620,5 +640,4 @@ class App(customtkinter.CTk):
 
 if __name__ == "__main__":
     root = App()
-    #app = Zoom_Advanced(root, path=path)
     root.mainloop()

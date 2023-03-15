@@ -21,4 +21,7 @@ class ElevatorPlayer(threading.Thread):
         if hasattr(self, "pobj"):
             self.doplay = False
             self.pobj.stop()
-            
+           
+    def is_playing(self):
+        if hasattr(self, "pobj"):
+            return self.pobj.is_playing()
