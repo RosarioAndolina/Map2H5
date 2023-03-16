@@ -219,11 +219,8 @@ class FitOptions(customtkinter.CTkToplevel):
             cfg = customtkinter.filedialog.askopenfilename(title = "Open config file",
                                                            initialdir = os.getcwd(),
                                                            filetypes = [("CFG", "*.cfg"), ("ALL", "*")])
-            shifter.join()
             outputdir = os.getcwd()
-            print(self.master.data.shape)
-            self.ffit = FastFit(data = self.master.data.data, cfgfile = cfg, outputdir = outputdir)
-            print(self.ffit.filename)
+            self.ffit = FastFit(cfgfile = cfg, outputdir = outputdir)
             if os.path.exists(self.ffit.filename):
                 dialog = ExistsDialog(fname = self.ffit.filename)
                 dialog.update()
@@ -243,6 +240,8 @@ class FitOptions(customtkinter.CTkToplevel):
                 message.update()
                 message.focus()
                 message.play(lambda: self.master.player.start())
+                shifter.join()
+                self.ffit.data = self.master.data.data
                 self.ffit.fit()
                 message.stop(lambda: self.master.player.stop())
                 message.destroy()
@@ -384,7 +383,7 @@ class Zoom_Advanced(customtkinter.CTkFrame):
         hbar.grid(row=1, column=0, sticky='we')
         # Create canvas and put image on it
         self.canvas = tk.Canvas(self, highlightthickness=0,
-                                xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+                                xscrollcommand=hbar.set, yscrollcommand=vbar.set, bg = "black")
         self.canvas.grid(row=0, column=0, sticky='nswe')
         self.canvas.update()  # wait till canvas is created
         vbar.configure(command=self.scroll_y)  # bind scrollbars to the canvas
@@ -651,4 +650,7 @@ class App(customtkinter.CTk):
 
 if __name__ == "__main__":
     root = App()
+    if platform.system().startswith('Linux'):
+        root.option_add('*TkChooseDir*foreground', 'gray10')
+        root.option_add('*TkFDialog*foreground', 'gray10')
     root.mainloop()
