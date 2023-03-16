@@ -162,7 +162,7 @@ class SaveOptions(customtkinter.CTkToplevel):
         self.label.grid(row = 0, column = 0, sticky = "we")
 
         self.combobox = customtkinter.CTkOptionMenu(master = self,
-                                                    values = ['Data', 'E-maps','Both'],
+                                                    values = ['Data (H5)', 'E-maps (Tiff)','Together (H5)'],
                                                     command = self.save_options)
         self.combobox.set('Data')
         self.combobox.grid(row = 1, column = 0)
@@ -170,17 +170,38 @@ class SaveOptions(customtkinter.CTkToplevel):
         self.grid_columnconfigure(0, weight = 1)
 
     def save_options(self, choice):
-        if choice == "Data" and hasattr(self.master, "data"):
+        if hasattr(self.master, "data"):
+            shifter = Shifter(0, self.master)
+            shifter.start()
             path = customtkinter.filedialog.asksaveasfilename()
-            message = MessageFrame(text = "Saving...")
+            if self.master.elevator: self.master.player = ElevatorPlayer(0, "player0", os.path.join(INSTALLDIR,'share/Map2H5','elevator-music.wav')) 
+            message = MessageFrame(text = "Saving...", elevator = self.master.elevator)
             message.update()
-            self.master.data.save_h5(path)
-            message.destroy()
-        elif choice == "E-maps":
-            print("not implemented yet")
+            message.play(lambda: self.master.player.start())
+            shifter.join()
+            if choice == "Data (H5)":
+                if hasattr(self.master.data, "calibration"):
+                    del self.master.data.calibration
+                self.master.data.save_h5(path)
+            
+            elif hasattr(self.master, 'parameters'):
+                keys = list(self.master.labels.keys())
+                _ = keys.pop(keys.index("data"))
+                
+                if choice == "E-maps (Tiff)":
+                    print("not implemented yet")
 
-        elif choice == "Both":
-            print("not implemented yet")
+                elif choice == "Together (H5)":
+                    if hasattr(self.master.data, "calibration"):
+                        del self.master.data.calibration
+                    self.master.data.metadata['labels'] = keys
+                    self.master.data.labels = zeros((self.master.data.shape[0], self.master.data.shape[1],len(keys)))
+                    for i, k in enumerate(keys):
+                        self.master.data.labels[:,:,i] = self.master.labels[k]
+                    self.master.data.save_h5(path)
+            
+            message.stop(lambda: self.master.player.stop()) 
+            message.destroy()
 
         self.destroy()
 
@@ -630,6 +651,8 @@ class App(customtkinter.CTk):
                 self.imarray = self.labels['data']
                 self.emapsmenu.grid(row = 2, column = 0, padx = 3, pady = 3, sticky = "we")
                 self.emapsmenu.showEmap("data")
+                self.data.calibrate_from_parameters(self.parameters)
+                self.data._x  = self.data.x
 
     def shift_callback(self, value, update = True):
         if hasattr(self, "imarray") and type(self.imarray) != type(None):
