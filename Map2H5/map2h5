@@ -247,8 +247,12 @@ class FitOptions(customtkinter.CTkToplevel):
         self.grid_columnconfigure(0, weight = 1)
     
     def PyMcaAdvFit(self):
+        if platform.system().startswith('Linux'):
+            bindir = "Scripts"
+        elif platform.system().startswith('Windows'):
+            bindir = "bin"
         if self.sumspectrum_path:
-            command = ['python3', os.path.join(INSTALLDIR, 'bin','PyMcaAdvFit'), f'{self.sumspectrum_path}']
+            command = ['python', os.path.join(INSTALLDIR, bindir,'PyMcaAdvFit'), f'{self.sumspectrum_path}']
             p = Popen(command)
             p.wait()
 
@@ -609,7 +613,7 @@ class App(customtkinter.CTk):
             if platform.system().startswith('Linux'):
                 self.sumspectrum_path = f"/tmp/{os.path.basename(self.path)}_{self.name}_sumspectrum.tmp"
             elif platform.system().startswith('Windows'):
-                self.sumspectrum_path = f"C:/Users/AppData/Local/Temp/{os.path.basename(self.path)}_{self.name}_sumspectrum.tmp"
+                self.sumspectrum_path = f"C:/Users/{os.getlogin()}/AppData/Local/Temp/{os.path.basename(self.path)}_{self.name}_sumspectrum.tmp"
             data = self.data.data.sum(0).sum(0)
             npixel = self.data.shape[0]*self.data.shape[1]
             savetxt(self.sumspectrum_path, transpose([arange(self.data.shape[2]),data/npixel]))
