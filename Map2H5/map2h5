@@ -248,9 +248,9 @@ class FitOptions(customtkinter.CTkToplevel):
     
     def PyMcaAdvFit(self):
         if platform.system().startswith('Linux'):
-            bindir = "Scripts"
+            bindir = "bin" 
         elif platform.system().startswith('Windows'):
-            bindir = "bin"
+            bindir = "Scripts"
         if self.sumspectrum_path:
             command = ['python', os.path.join(INSTALLDIR, bindir,'PyMcaAdvFit'), f'{self.sumspectrum_path}']
             p = Popen(command)
