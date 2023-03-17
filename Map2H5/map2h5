@@ -3,7 +3,7 @@
 from sys import exit as sysexit
 from PIL import Image, ImageTk
 import tkinter
-from numpy import array, asarray, zeros, ones, roll, uint8, arange, savetxt, transpose, hstack
+from numpy import array, asarray, zeros, ones, roll, uint8, uint16, arange, savetxt, transpose, hstack
 import customtkinter
 from time import sleep
 from matplotlib.pyplot import imshow
@@ -34,6 +34,18 @@ except ModuleNotFoundError:
     AUDIOSUPPORT = False
 
 INSTALLDIR = os.path.dirname(os.path.dirname(__file__))
+
+def SaveTiff(arrayin, tiffout):
+    size = arrayin.shape[:2]
+    #make sure that arrayin has uint16 little endian dtype
+    arrayin = arrayin.astype(arrayin.dtype.newbyteorder("<"))
+
+    #create uint16 image
+    outimg = Image.new('I;16', size)
+    outimg.frombytes(arrayin)
+
+    #save
+    outimg.save(tiffout)
 
 class Shifter(threading.Thread):
     def __init__(self, threadID, master):
@@ -173,23 +185,34 @@ class SaveOptions(customtkinter.CTkToplevel):
         if hasattr(self.master, "data"):
             shifter = Shifter(0, self.master)
             shifter.start()
-            path = customtkinter.filedialog.asksaveasfilename()
+            path = customtkinter.filedialog.asksaveasfilename(title = "File or Directory name", initialdir = os.getcwd())
+            if not path:
+                self.destroy()
+                return
+            path, extension = os.path.splitext(path)
             if self.master.elevator: self.master.player = ElevatorPlayer(0, "player0", os.path.join(INSTALLDIR,'share/Map2H5','elevator-music.wav')) 
-            message = MessageFrame(text = "Saving...", elevator = self.master.elevator)
+            message = MessageFrame(text = f"Saving {choice}...", elevator = self.master.elevator)
             message.update()
             message.play(lambda: self.master.player.start())
             shifter.join()
             if choice == "Data (H5)":
                 if hasattr(self.master.data, "calibration"):
                     del self.master.data.calibration
-                self.master.data.save_h5(path)
+                self.master.data.save_h5(path+'.h5')
+                print("Done!")
             
             elif hasattr(self.master, 'parameters'):
                 keys = list(self.master.labels.keys())
                 _ = keys.pop(keys.index("data"))
                 
                 if choice == "E-maps (Tiff)":
-                    print("not implemented yet")
+                    os.makedirs(path, exist_ok = True)
+                    print(f"Saving in {path}...")
+                    for k in keys:
+                        fname = os.path.join(path, f"{k}.tiff")
+                        SaveTiff(self.master.labels[k], fname)
+                    os.remove(self.master.fit_output)
+                    print("Done!")
 
                 elif choice == "Together (H5)":
                     if hasattr(self.master.data, "calibration"):
@@ -198,7 +221,8 @@ class SaveOptions(customtkinter.CTkToplevel):
                     self.master.data.labels = zeros((self.master.data.shape[0], self.master.data.shape[1],len(keys)))
                     for i, k in enumerate(keys):
                         self.master.data.labels[:,:,i] = self.master.labels[k]
-                    self.master.data.save_h5(path)
+                    self.master.data.save_h5(path+'.h5')
+                    print("Done!")
             
             message.stop(lambda: self.master.player.stop()) 
             message.destroy()
@@ -653,6 +677,7 @@ class App(customtkinter.CTk):
                 self.emapsmenu.showEmap("data")
                 self.data.calibrate_from_parameters(self.parameters)
                 self.data._x  = self.data.x
+                self.fit_output = fitopt.ffit.filename
 
     def shift_callback(self, value, update = True):
         if hasattr(self, "imarray") and type(self.imarray) != type(None):
