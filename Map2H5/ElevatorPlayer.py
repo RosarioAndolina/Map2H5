@@ -1,5 +1,10 @@
-import simpleaudio as sa
 import threading
+
+AUDIOSUPPORT = True
+try:
+    import simpleaudio as sa
+except ModuleNotFoundError:
+    AUDIOSUPPORT = False
 
 class ElevatorPlayer(threading.Thread):
     def __init__(self, threadID, name, audiofile):

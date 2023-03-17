@@ -26,12 +26,10 @@ import os, platform
 from Map2H5.FastFit import FastFit
 import threading
 from functools import partial
-
-AUDIOSUPPORT = True
-try:
-    from Map2H5.ElevatorPlayer import ElevatorPlayer
-except ModuleNotFoundError:
-    AUDIOSUPPORT = False
+from Map2H5 import ElevatorPlayer
+AUDIOSUPPORT = ElevatorPlayer.AUDIOSUPPORT
+ElevatorPlayer = ElevatorPlayer.ElevatorPlayer
+#from Map2H5.ElevatorPlayer import ElevatorPlayer
 
 INSTALLDIR = os.path.dirname(os.path.dirname(__file__))
 
