@@ -10,7 +10,8 @@ class FastFit():
         self.cfgfile = cfgfile
         self.outputdir = outputdir
         self.outputRoot = "IMAGES"
-        self.filename = join(self.outputdir, f'{self.outputRoot}.h5')
+        if self.outputdir:
+            self.filename = join(self.outputdir, f'{self.outputRoot}.h5')
         
     def fit(self):
         if type(self.data) != type(None) and self.cfgfile and self.outputdir:

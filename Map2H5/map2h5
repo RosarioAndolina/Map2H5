@@ -264,9 +264,9 @@ class FitOptions(customtkinter.CTkToplevel):
             cfg = customtkinter.filedialog.askopenfilename(title = "Open config file",
                                                            initialdir = os.getcwd(),
                                                            filetypes = [("CFG", "*.cfg"), ("ALL", "*")])
-            outputdir = os.getcwd()
+            outputdir = os.getcwd() if cfg else None
             self.ffit = FastFit(cfgfile = cfg, outputdir = outputdir)
-            if os.path.exists(self.ffit.filename):
+            if hasattr(self.ffit, "filename") and os.path.exists(self.ffit.filename):
                 dialog = ExistsDialog(fname = self.ffit.filename)
                 dialog.update()
                 self.wait_window(dialog)
