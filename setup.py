@@ -12,5 +12,5 @@ setup(name='Map2H5',
     data_files = [('share/Map2H5', ['Map2H5/elevator-music.wav'])],
     #    "XRDXRFutilst"],
     #dependency_links = ["", "git+ssh://git@github.com:zpreisler/XRDXRFutils.git"],
-    scripts = ['Map2H5/map2h5','Map2h5/map2h5.bat','Map2H5/PyMcaAdvFit']
+    scripts = ['Map2H5/map2h5','Map2H5/map2h5.bat','Map2H5/PyMcaAdvFit']
     )

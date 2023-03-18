@@ -191,6 +191,7 @@ class SaveOptions(customtkinter.CTkToplevel):
             if self.master.elevator: self.master.player = ElevatorPlayer(0, "player0", os.path.join(INSTALLDIR,'share/Map2H5','elevator-music.wav')) 
             message = MessageFrame(text = f"Saving {choice}...", elevator = self.master.elevator)
             message.update()
+            message.focus()
             message.play(lambda: self.master.player.start())
             shifter.join()
             if choice == "Data (H5)":
@@ -271,6 +272,7 @@ class FitOptions(customtkinter.CTkToplevel):
             if hasattr(self.ffit, "filename") and os.path.exists(self.ffit.filename):
                 dialog = ExistsDialog(fname = self.ffit.filename)
                 dialog.update()
+                dialog.focus()
                 self.wait_window(dialog)
                 newfname = dialog.get()
                 if newfname:
@@ -602,6 +604,7 @@ class App(customtkinter.CTk):
             self.message = MessageFrame(text = "Reading...", elevator = self.elevator)
             self.message.play(lambda: self.player.start())
             self.message.update()
+            self.message.focus()
             self.data = DataXRF().read_from_map(self.path)
             self.data.shift_value = 0
             self.message.stop(lambda: self.player.stop())
@@ -631,6 +634,7 @@ class App(customtkinter.CTk):
             self.message = MessageFrame(text = "Reading...", elevator = self.elevator)
             self.message.play(lambda: self.player.start())
             self.message.update()
+            self.message.focus()
             data = DataXRF().read_from_map(path)
             self.message.stop(lambda: self.player.stop())
             self.message.destroy()
@@ -656,10 +660,12 @@ class App(customtkinter.CTk):
     
     def save_callback(self):
         selection = SaveOptions()
+        selection.focus()
 
     def fit_callback(self):
         if hasattr(self, "sumspectrum_path"):
             fitopt = FitOptions(sumspectrum_path = self.sumspectrum_path)
+            fitopt.focus()
             self.wait_window(fitopt)
             self.parameters = fitopt.get_parameters()
             self.labels = fitopt.get_labels()
