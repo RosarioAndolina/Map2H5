@@ -30,20 +30,12 @@ from Map2H5 import ElevatorPlayer
 AUDIOSUPPORT = ElevatorPlayer.AUDIOSUPPORT
 ElevatorPlayer = ElevatorPlayer.ElevatorPlayer
 #from Map2H5.ElevatorPlayer import ElevatorPlayer
+import tifffile as tf
 
 INSTALLDIR = os.path.dirname(os.path.dirname(__file__))
 
 def SaveTiff(arrayin, tiffout):
-    size = arrayin.shape[:2]
-    #make sure that arrayin has uint16 little endian dtype
-    arrayin = arrayin.astype(arrayin.dtype.newbyteorder("<"))
-
-    #create uint16 image
-    outimg = Image.new('I;16', size)
-    outimg.frombytes(arrayin)
-
-    #save
-    outimg.save(tiffout)
+    tf.imwrite(tiffout, arrayin.astype(uint16))
 
 class Shifter(threading.Thread):
     def __init__(self, threadID, master):
