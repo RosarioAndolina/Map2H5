@@ -175,7 +175,7 @@ class SaveOptions(customtkinter.CTkToplevel):
         if hasattr(self.master, "data"):
             shifter = Shifter(0, self.master)
             shifter.start()
-            path = customtkinter.filedialog.asksaveasfilename(title = "File or Directory name", initialdir = os.getcwd())
+            path = customtkinter.filedialog.asksaveasfilename(title = "File or Directory name", initialdir = self.master.filedialog_path)
             if not path:
                 self.destroy()
                 return
@@ -257,7 +257,7 @@ class FitOptions(customtkinter.CTkToplevel):
             shifter = Shifter(0, self.master)
             shifter.start()
             cfg = customtkinter.filedialog.askopenfilename(title = "Open config file",
-                                                           initialdir = os.getcwd(),
+                                                           initialdir = self.master.filedialog_path,
                                                            filetypes = [("CFG", "*.cfg"), ("ALL", "*")])
             outputdir = os.getcwd() if cfg else None
             self.ffit = FastFit(cfgfile = cfg, outputdir = outputdir)
@@ -534,6 +534,7 @@ class App(customtkinter.CTk):
         self.geometry('800x500')
         self.title("Map2H5")
         self.shift_value = 0
+        self.filedialog_path = os.path.expanduser("~")
 
         self.elevator = False
         self.labels = {}
@@ -590,8 +591,12 @@ class App(customtkinter.CTk):
             self.data.data = self.data.data[:,self.unpad_filter]
 
     def read_callback(self):
-        self.path = customtkinter.filedialog.askdirectory()
+        self.path = customtkinter.filedialog.askdirectory(initialdir = self.filedialog_path)
         if self.path:
+            self.filedialog_path = self.path
+            cwd = ''
+            while cwd == '':
+                self.filedialog_path, cwd = os.path.split(self.filedialog_path)
             if self.elevator: self.player = ElevatorPlayer(0, "player0", os.path.join(INSTALLDIR, 'share/Map2H5','elevator-music.wav'))
             self.message = MessageFrame(text = "Reading...", elevator = self.elevator)
             self.message.play(lambda: self.player.start())
@@ -620,7 +625,7 @@ class App(customtkinter.CTk):
     def add_callback(self):
         if not hasattr(self,"data"):
             return
-        path = customtkinter.filedialog.askdirectory()
+        path = customtkinter.filedialog.askdirectory(initialdir = self.filedialog_path)
         if path:
             if self.elevator: self.player = ElevatorPlayer(0, "player0", os.path.join(INSTALLDIR, 'share/Map2H5','elevator-music.wav'))
             self.message = MessageFrame(text = "Reading...", elevator = self.elevator)
