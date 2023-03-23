@@ -642,7 +642,8 @@ class App(customtkinter.CTk):
         return x
 
     def update_imarray(self):
-        self.imarray = self.data.data.sum(0)
+        print("image updated")
+        self.imarray = self.data.data.sum(2)
         self.emapsmenu.update_data_vmax()
         self.emapsmenu.update_data_vmin()
 
@@ -695,6 +696,7 @@ class App(customtkinter.CTk):
             else:
                 self.read_button.configure(fg_color = tuple(self.read_button_fgcolor))
                 self.read_button.configure(hover_color = tuple(self.read_button_hcolor))
+                if hasattr(self, "reader"): self.reader.stop_reading()
             self.path = customtkinter.filedialog.askdirectory(initialdir = self.filedialog_path)
             self.cfgfile = customtkinter.filedialog.askopenfilename(title = "Open PyMca config file", initialdir = self.filedialog_path)
             if not self.path and not self.cfgfile: return
@@ -706,7 +708,7 @@ class App(customtkinter.CTk):
                 if item.startswith(tail) and os.path.isdir(os.path.join(self.path,item)):
                     self.ndetector += 1
             print("ndetector:", self.ndetector)
-            self.reader = DynamicReader(master = self, path = self.path, ndetector = self.ndetector)
+            self.reader = DynamicReader(root = self, path = self.path, ndetector = self.ndetector)
             self.data = DataXRF()
             self.data.shift_value = 0
             self.data.data = zeros((self.reader.nrow, self.reader.rowlen, 2048))
